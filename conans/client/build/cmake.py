@@ -11,7 +11,7 @@ from conans.errors import ConanException
 from conans.model.conan_file import ConanFile
 from conans.model.version import Version
 from conans.util.env_reader import get_env
-from conans.util.files import mkdir
+from conans.util.files import mkdir, load, save
 from conans.tools import cpu_count, args_to_string
 from conans import tools
 from conans.util.log import logger
@@ -315,6 +315,33 @@ class CMake(object):
             build_ret = get_dir(cache_build_folder, self._conanfile.build_folder)
 
         return source_ret, build_ret
+
+    def inject_conan_basic_setup(self,cmake_file=None,source_folder=None,output_file=None):
+        cmake_file = "CMakeLists.txt" if cmake_file is None else cmake_file
+        source_folder = self._conanfile.source_folder if source_folder is None else source_folder
+                
+        if not os.path.isfile(os.path.join(source_folder,cmake_file)):
+            raise ConanException("didn't find %s file in folder %s for setup injection" % (cmake_file, source_folder))
+
+        content = load(os.path.join(source_folder,cmake_file))
+        lines = content.splitlines()
+        project_strings = ["project", "PROJECT"]
+
+        #find line containing cmake project() directive
+        project_line = [any(_ in line for _ in project_strings) for line in lines].index(True)
+        
+        #fall through any right parens
+        while ')' not in lines[project_line]:
+            project_line +=1
+                
+        conan_setup_string = """ include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+        conan_basic_setup()"""
+        
+        #insert setup string after project line
+        lines.insert(project_line+1,conan_setup_string)
+        output_file = cmake_file if output_file is None else output_file        
+        save(output_file,os.linesep.join(lines))
+        
 
     def configure(self, args=None, defs=None, source_dir=None, build_dir=None,
                   source_folder=None, build_folder=None, cache_build_folder=None):
