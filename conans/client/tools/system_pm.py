@@ -2,6 +2,7 @@ import os
 from conans.client.runner import ConanRunner
 from conans.client.tools.oss import OSInfo
 from conans.errors import ConanException
+from io import StringIO
 
 _global_output = None
 
@@ -76,6 +77,13 @@ class SystemPackageTool(object):
                 pass
         raise ConanException("Could not install any of %s" % packages)
 
+    def installed_version(self, package):
+        if not self._installed([package]):
+            raise ConanException("package %s is not installed")
+        version = self._tool.installed_version(package)
+        return version
+
+
 
 class NullTool(object):
     def update(self):
@@ -87,6 +95,10 @@ class NullTool(object):
 
     def installed(self, package_name):
         return False
+    
+    def installed_version(self,package_name):
+        return None
+
 
 
 class AptTool(object):
@@ -101,6 +113,10 @@ class AptTool(object):
         exit_code = self._runner("dpkg -s %s" % package_name, None)
         return exit_code == 0
 
+    def installed_version(self,package_name):
+        output = _run_get_output(self._runner, "apt-cache policy %s" % package_name)
+        return output.splitlines()[1].split(":")[1].strip()
+        
 
 class YumTool(object):
     def update(self):
@@ -112,7 +128,12 @@ class YumTool(object):
     def installed(self, package_name):
         exit_code = self._runner("rpm -q %s" % package_name, None)
         return exit_code == 0
-
+    
+    def installed_version(self,package_name):
+        output = _run_get_output(self._runner, "rpm -qv %s" % package_name)        
+        return ".".join(output.strip(package_name+"-").split(".")[:-1])
+    
+    
 
 class BrewTool(object):
     def update(self):
@@ -184,9 +205,33 @@ class ZypperTool(object):
     def installed(self, package_name):
         exit_code = self._runner("rpm -q %s" % package_name, None)
         return exit_code == 0
+    
+    def installed_version(self, package_name):
+        output = _run_get_output(self._runner, "rpm -qv %s" % package_name)
+        return ".".join(output.strip(package_name+"-").split(".")[:-1])
+    
 
 def _run(runner, command, accepted_returns=None):
     accepted_returns = accepted_returns or [0, ]
     _global_output.info("Running: %s" % command)
     if runner(command, True) not in accepted_returns:
         raise ConanException("Command '%s' failed" % command)
+
+
+def _run_get_output(runner,command,expected_exit_code=0):
+    stream = StringIO()
+    exit_code = runner(command,stream)
+    if exit_code != expected_exit_code:
+        raise ConanException("invalid return code %d running command %s" 
+                             % (exit_code,command))
+    return stream.getvalue()
+
+
+
+if __name__ == "__main__":
+    import sys
+    from conans.client.output import ConanOutput
+    _global_output = ConanOutput(sys.stdout)
+    spt = SystemPackageTool()
+    
+    vers = spt.installed_version("cmake")
