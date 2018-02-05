@@ -1,8 +1,6 @@
 import os
-from contextlib import contextmanager
 
 from conans import tools  # @UnusedImport KEEP THIS! Needed for pyinstaller to copy to exe.
-from conans.client.tools.env import pythonpath
 from conans.errors import ConanException
 from conans.model.build_info import DepsCppInfo
 from conans.model.env_info import DepsEnvInfo, EnvValues
@@ -50,13 +48,29 @@ def create_requirements(conanfile):
         raise ConanException("Error while initializing requirements. %s" % str(e))
 
 
-def create_settings(conanfile, settings, local):
+def create_build_requirements(conanfile):
+    try:
+        # Actual build requirements of this package
+        if not hasattr(conanfile, "build_requires"):
+            return Requirements()
+        else:
+            if not conanfile.build_requires:
+                return Requirements()
+            if isinstance(conanfile.build_requires, tuple):
+                return Requirements(*conanfile.build_requires)
+            else:
+                return Requirements(conanfile.build_requires, )
+    except Exception as e:
+        raise ConanException("Error while initializing build_requirements. %s" % str(e))
+
+
+def create_settings(conanfile, settings):
     try:
         defined_settings = getattr(conanfile, "settings", None)
         if isinstance(defined_settings, str):
             defined_settings = [defined_settings]
         current = defined_settings or {}
-        settings.constraint(current, raise_undefined_field=not local)
+        settings.constraint(current)
         return settings
     except Exception as e:
         raise ConanException("Error while initializing settings. %s" % str(e))
@@ -80,19 +94,8 @@ def create_exports_sources(conanfile):
         return conanfile.exports_sources
 
 
-@contextmanager
-def _env_and_python(conanfile):
-    with environment_append(conanfile.env):
-        with pythonpath(conanfile):
-            yield
-
-
-def get_env_context_manager(conanfile, without_python=False):
-    if not conanfile.apply_env:
-        return no_op()
-    if without_python:
-        return environment_append(conanfile.env)
-    return _env_and_python(conanfile)
+def get_env_context_manager(conanfile):
+    return environment_append(conanfile.env) if conanfile.apply_env else no_op()
 
 
 class ConanFile(object):
@@ -119,7 +122,8 @@ class ConanFile(object):
         # User defined options
         self.options = create_options(self)
         self.requires = create_requirements(self)
-        self.settings = create_settings(self, settings, local)
+        self.build_requires = create_build_requirements(self)
+        self.settings = create_settings(self, settings) if not local else settings
         try:
             if self.settings.os_build and self.settings.os:
                 output.writeln("*"*60, front=Color.BRIGHT_RED)
