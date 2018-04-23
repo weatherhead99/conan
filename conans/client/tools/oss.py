@@ -71,7 +71,8 @@ class OSInfo(object):
         self.is_macos = platform.system() == "Darwin"
         self.is_freebsd = platform.system() == "FreeBSD"
         self.is_solaris = platform.system() == "SunOS"
-
+        self.dev_package_extension = None
+        
         if self.is_linux:
             import distro
             self.linux_distro = distro.id()
@@ -87,7 +88,7 @@ class OSInfo(object):
             self.os_version = Version(platform.mac_ver()[0])
             self.os_version_name = self.get_osx_version_name(self.os_version)
         elif self.is_freebsd:
-            self.os_version = self.get_freebsd_version()
+            self.os_version = self.get_frweebsd_version()
             self.os_version_name = "FreeBSD %s" % self.os_version
         elif self.is_solaris:
             self.os_version = Version(platform.release())
@@ -273,6 +274,18 @@ class OSInfo(object):
             return WSL
         else:
             return None
+        
+    @staticmethod
+    def get_dev_package_extension(distro):
+        name = distro.id()
+        if name in ["opensuse"] :
+            return "-devel"
+        
+        if name in ["ubuntu"] :
+            return "-dev"
+        
+        return ""
+    
 
 
 def cross_building(settings, self_os=None, self_arch=None):
