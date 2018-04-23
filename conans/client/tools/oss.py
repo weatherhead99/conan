@@ -81,6 +81,7 @@ class OSInfo(object):
             self.os_version_name = version_name if version_name != "n/a" else ""
             if not self.os_version_name and self.linux_distro == "debian":
                 self.os_version_name = self.get_debian_version_name(self.os_version)
+            self.dev_package_extension = self.get_dev_package_extension(distro)
         elif self.is_windows:
             self.os_version = self.get_win_os_version()
             self.os_version_name = self.get_win_version_name(self.os_version)
